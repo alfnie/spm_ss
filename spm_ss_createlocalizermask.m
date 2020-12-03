@@ -137,8 +137,11 @@ if strcmp(options,'noconjunction')
             filename='locT_';
             filename=[filename,symbols{signIc(nic1,nic2)},num2str(abs(Ic(nic1,nic2)),'%04d'),'_',thr_type{nic2},num2str(thr(nic2))];
             if ~isempty(optionROIs)&&(strcmpi(thr_type{nic2},'percentile-ROI-level')|strcmpi(thr_type{nic2},'Nvoxels-ROI-level')) % note: avoid same localizer file for different optionROIs files
-                [nill,fname,nill]=fileparts(optionROIs(1).fname);
-                filename=[filename,'_',fname]; 
+                filename=[filename,'_',char(mlreportgen.utils.hash(optionROIs(1).fname))]; % note: requires Matlab 18b or above
+                parcelfile={optionROIs.fname};
+                %[nill,fname,nill]=fileparts(optionROIs(1).fname);
+                %filename=[filename,'_',fname]; 
+            else parcelfile={};
             end
             filename=[filename,'.img'];
             maskfilename{nic1,nic2}=fullfile(SPM{Ec(nic1,nic2)}.swd,filename);
@@ -249,6 +252,7 @@ if strcmp(options,'noconjunction')
                         'pinfo',    [1;0;0],...
                         'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
                     Vo=spm_write_vol(Vo,Z);
+                    spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr(nic2),'threshold_type',{thr_type(nic2)},'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z)));
                     cd(cwd0);
                 end
             end
@@ -263,8 +267,11 @@ else
             if nic2<size(Ic,2),filename=[filename,'_']; end;
         end
         if ~isempty(optionROIs)&&(any(strcmp(thr_type,'percentile-ROI-level'))||any(strcmp(thr_type,'Nvoxels-ROI-level'))) % note: avoid same localizer file for different optionROIs files
-            [nill,fname,nill]=fileparts(optionROIs(1).fname);
-            filename=[filename,'_',fname];
+            filename=[filename,'_',char(mlreportgen.utils.hash(optionROIs(1).fname))]; % note: requires Matlab 18b or above
+            parcelfile={optionROIs.fname};
+            %[nill,fname,nill]=fileparts(optionROIs(1).fname);
+            %filename=[filename,'_',fname];
+        else parcelfile={};
         end
         filename=[filename,'.img'];
         maskfilename{nic1}=fullfile(SPM{Ec(nic1,1)}.swd,filename);
@@ -377,6 +384,7 @@ else
                     'pinfo',    [1;0;0],...
                     'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
                 Vo=spm_write_vol(Vo,Z);
+                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type},'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z)));
                 cd(cwd0);
             end
         end
