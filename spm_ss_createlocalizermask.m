@@ -384,7 +384,7 @@ else
                     'pinfo',    [1;0;0],...
                     'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
                 Vo=spm_write_vol(Vo,Z);
-                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type},'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z)));
+                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type},'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0)));
                 cd(cwd0);
             end
         end

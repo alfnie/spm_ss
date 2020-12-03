@@ -18,7 +18,7 @@ cwd=pwd;
 
 % explicit mask
 if ~isempty(ss.ExplicitMasking),XM=spm_vol(char(ss.ExplicitMasking));else XM=[];end
-assert(any(numel(XM)=[0,1,ss.n]),'unexpected number of volumes (%d) in ExplicitMasking field',numel(XM)); % note: allows subject-specific ExplicitMasking files
+assert(any(numel(XM)==[0,1,ss.n]),'unexpected number of volumes (%d) in ExplicitMasking field',numel(XM)); % note: allows subject-specific ExplicitMasking files
 
 % creates transformed measures
 neffects=size(ss.EffectOfInterest{1},1);
@@ -164,7 +164,9 @@ for n=1:ss.n
         tN(isnan(tN))=0;
         a4=struct('fname',[regexprep(ss.PN{nk},['(_',extname,')?(\.nii$|\.img$)'],''),'_',extname,'.ROIs.nii'],'mat',ss.refspace.masks{n}.mat,'dim',ss.refspace.masks{n}.dim,'dt',[spm_type('uint16') spm_platform('bigend')],'descrip','localizer-by-parcel file','pinfo',[1;0;0]);
         spm_write_vol(a4, reshape(frois{n},ss.VN(idxk1).dim(1:3)).*(tN>0));
-        try, spm_jsonwrite([regexprep(ss.PN{nk},['(_',extname,')?(\.nii$|\.img$)'],''),'_',extname,'.ROIs.json'],struct('analysis_directory',ss.swd,'analysis_type',ss.type,'parcels_file',{cellstr(char(ss.ManualROIs))},'parcels_names',{cellstr(char(ss.VM_roinames))},'parcels_ids',ss.VM_roiids)); end
+        if isempty(ss.VM_roinames), spm_jsonwrite([regexprep(ss.PN{nk},['(_',extname,')?(\.nii$|\.img$)'],''),'_',extname,'.ROIs.json'],struct('analysis_directory',ss.swd,'analysis_type',ss.type,'parcels_file',{cellstr(char(ss.ManualROIs))},'parcels_names',{arrayfun(@num2str,1:nrois,'uni',0)},'parcels_ids',1:nrois));
+        else spm_jsonwrite([regexprep(ss.PN{nk},['(_',extname,')?(\.nii$|\.img$)'],''),'_',extname,'.ROIs.json'],struct('analysis_directory',ss.swd,'analysis_type',ss.type,'parcels_file',{cellstr(char(ss.ManualROIs))},'parcels_names',{cellstr(char(ss.VM_roinames))},'parcels_ids',ss.VM_roiids));
+        end
     end
     
     % creates QA images in subject-space (optional)
