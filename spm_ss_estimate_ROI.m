@@ -158,7 +158,7 @@ for n=1:ss.n
     end
     
     % creates localizer files broken down by ROIs (optional)
-    extname=char(mlreportgen.utils.hash(vm.fname));
+    extname=char(mlreportgen.utils.hash(fileread(vm.fname)));
     for nk=reshape(find(idxk),1,[])
         tN=reshape(spm_get_data(ss.VN(nk),pinv(ss.VN(nk).mat)*ss.VN(idxk1).mat*tXYZ),ss.VN(idxk1).dim(1:3));
         tN(isnan(tN))=0;
