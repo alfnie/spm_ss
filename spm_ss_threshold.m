@@ -4,7 +4,7 @@ function [thr_p,thr_type,filenames]=spm_ss_threshold(option,spm_data,Ic,Ec,optio
 % estimates localizer contrast optimal first-level FDR-corrected threshold across multiple subjects
 %
 
-persistent OptimalThreshold Threshold_type Threshold_p AnyAutomatic SPMfiles ContrastIndexes ExpIndexes MaskFilenames
+persistent OptimalThreshold Threshold_type Threshold_p Conjunction_type AnyAutomatic SPMfiles ContrastIndexes ExpIndexes MaskFilenames
 
 if nargin<7, overwrite=0; end
 if nargin<6, optionROIs=''; end
@@ -49,9 +49,13 @@ switch(lower(option))
         if nargin>1,
             Threshold_type=spm_data;
             Threshold_p=Ic;
+            if nargin>3, Conjunction_type=Ec;
+            else Conjunction_type='and';
+            end
         else
             Threshold_type={'automatic'};
             Threshold_p=nan;
+            Conjunction_type='and';
         end
         AnyAutomatic=~isempty(strmatch('automatic',Threshold_type,'exact'));
         
@@ -88,7 +92,7 @@ switch(lower(option))
                 end
             end
         else
-            MaskFilenames{end+1}=spm_ss_createlocalizermask(spm_data.SPM,Ic,Ec,overwrite,Threshold_type,Threshold_p,options,optionROIs);
+            MaskFilenames{end+1}=spm_ss_createlocalizermask(spm_data.SPM,Ic,Ec,overwrite,Threshold_type,Threshold_p,Conjunction_type,options,optionROIs);
         end
         for nexp=1:numel(spm_data.SPM),
             idx=find(Ec==nexp);
@@ -109,7 +113,7 @@ switch(lower(option))
         if nargout>1&&AnyAutomatic
             for np=1:numel(SPMfiles),
                 %load(SPMfiles{np},'SPM');
-                MaskFilenames{np}=spm_ss_createlocalizermask(SPMfiles{np},ContrastIndexes{np},ExpIndexes{np},overwrite,Threshold_type,Threshold_p);
+                MaskFilenames{np}=spm_ss_createlocalizermask(SPMfiles{np},ContrastIndexes{np},ExpIndexes{np},overwrite,Threshold_type,Threshold_p,Conjunction_type);
             end
         end
         thr_p=Threshold_p;

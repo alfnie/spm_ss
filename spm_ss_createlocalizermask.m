@@ -1,4 +1,4 @@
-function maskfilename=spm_ss_createlocalizermask(SPM,Ic,Ec,overwrite,thr_type,thr,options,optionROIs)
+function maskfilename=spm_ss_createlocalizermask(SPM,Ic,Ec,overwrite,thr_type,thr,conjunction_type,options,optionROIs)
 % SPM_SS_CREATELOCALIZERMASK
 % thresholds 1st-level contrast and create binary masks that can be used as
 % localizer images.
@@ -10,8 +10,9 @@ if nargin<3,Ec=[];end
 if nargin<4,overwrite=1;end
 if nargin<5,thr_type={};end
 if nargin<6,thr=[];end
-if nargin<7,options='';end
-if nargin<8,optionROIs='';end
+if nargin<7||isempty(conjunction_type),conjunction_type='and'; end
+if nargin<8,options='';end
+if nargin<9,optionROIs='';end
 if ~isempty(thr_type)&&ischar(thr_type)&&isempty(strmatch(thr_type,{'FDR','FWE','none','percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level'},'exact')),return;end
 maskfilename={};
 if ~iscell(thr_type),thr_type=cellstr(thr_type); end
@@ -40,7 +41,7 @@ if isempty(SPM),
     for np=1:numel(P),
         load(P{np},'SPM');
         SPM.swd=fileparts(P{np});
-        maskfilename{np}=spm_ss_createlocalizermask({SPM},Ic,[],overwrite,thr_type,thr);
+        maskfilename{np}=spm_ss_createlocalizermask({SPM},Ic,[],overwrite,thr_type,thr,conjunction_type);
     end
     return;
 end
@@ -258,13 +259,13 @@ if strcmp(options,'noconjunction')
             end
         end
     end
-else
+elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTION AND/OR
     for nic1=1:size(Ic,1), % computes one separate thresholded volume per row of Ic (multiple columns are treated as a conjunction)
         filename='locT_';
         for nic2=1:size(Ic,2),
             if Ec(nic1,nic2)~=Ec(nic1,1), temp=SPM{Ec(nic1,nic2)}.swd; temp(temp==filesep)='_';filename=[filename,temp]; end
             filename=[filename,symbols{signIc(nic1,nic2)},num2str(abs(Ic(nic1,nic2)),'%04d'),'_',thr_type{nic2},num2str(thr(nic2))];
-            if nic2<size(Ic,2),filename=[filename,'_']; end;
+            if nic2<size(Ic,2), filename=[filename,'_']; if ~strcmp(conjunction_type,'and'),filename=[filename,conjunction_type,'_']; end; end
         end
         if ~isempty(optionROIs)&&(any(strcmp(thr_type,'percentile-ROI-level'))||any(strcmp(thr_type,'Nvoxels-ROI-level'))) % note: avoid same localizer file for different optionROIs files
             filename=[filename,'_',char(mlreportgen.utils.hash(fileread(optionROIs(1).fname)))]; % note: requires Matlab 18b or above
@@ -276,7 +277,11 @@ else
         filename=[filename,'.img'];
         maskfilename{nic1}=fullfile(SPM{Ec(nic1,1)}.swd,filename);
         if overwrite||isempty(dir(maskfilename{nic1})),
-            Z=1;
+            switch(conjunction_type)
+                case 'and',     Z=1;
+                case 'or',      Z=0;
+                otherwise,      error('unrecognized conjunction type %s',conjuntion_type);
+            end
             U={};
             for nic2=1:size(Ic,2),
                 if ~isempty(strmatch(thr_type{nic2},{'FDR','FWE','none','percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level'},'exact')),
@@ -364,7 +369,11 @@ else
                     if ~any(Y(:)>0), disp(['Warning! Output localizer volume #',num2str(nic1), ', contrast name ',symbols{signIc(nic1,nic2)},SPM{Ec(nic1,nic2)}.xCon(abs(Ic(nic1,nic2))).name,',  in contrast file ',fullfile(SPM{Ec(nic1,nic2)}.swd,filename),', contains no supra-threshold voxels']);
                     else disp([num2str(sum(Y(:)>0)),' voxels in output localizer volume #',num2str(nic1), ', contrast name ',symbols{signIc(nic1,nic2)},SPM{Ec(nic1,nic2)}.xCon(abs(Ic(nic1,nic2))).name,',  in contrast file ',fullfile(SPM{Ec(nic1,nic2)}.swd,filename)]); end
                     % computes conjunction across rows of Ic
-                    Z=Z&Y;
+                    switch(conjunction_type)
+                        case 'and',     Z=Z&Y;
+                        case 'or',      Z=Z|Y;
+                        otherwise,      error('unrecognized conjunction type %s',conjuntion_type);
+                    end
                 else
                     error(['Incorrect threshold type option',thr_type{nic2}]);
                 end
@@ -384,11 +393,169 @@ else
                     'pinfo',    [1;0;0],...
                     'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
                 Vo=spm_write_vol(Vo,Z);
-                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type},'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0)));
+                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type},'conjunction_type',conjunction_type,'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0)));
                 cd(cwd0);
             end
         end
     end
+else % CONJUNCTION MIN/MAX/PROD/SUM
+    for nic1=1:size(Ic,1), % computes one separate thresholded volume per row of Ic (multiple columns are treated as a conjunction)
+        filename='locT_';
+        for nic2=1:size(Ic,2),
+            if Ec(nic1,nic2)~=Ec(nic1,1), temp=SPM{Ec(nic1,nic2)}.swd; temp(temp==filesep)='_';filename=[filename,temp]; end
+            filename=[filename,symbols{signIc(nic1,nic2)},num2str(abs(Ic(nic1,nic2)),'%04d'),'_',thr_type{nic2},num2str(thr(nic2))];
+            if nic2<size(Ic,2), filename=[filename,'_']; if ~strcmp(conjunction_type,'and'),filename=[filename,conjunction_type,'_']; end; end
+        end
+        if ~isempty(optionROIs)&&(any(strcmp(thr_type,'percentile-ROI-level'))||any(strcmp(thr_type,'Nvoxels-ROI-level'))) % note: avoid same localizer file for different optionROIs files
+            filename=[filename,'_',char(mlreportgen.utils.hash(fileread(optionROIs(1).fname)))]; % note: requires Matlab 18b or above
+            parcelfile={optionROIs.fname};
+            %[nill,fname,nill]=fileparts(optionROIs(1).fname);
+            %filename=[filename,'_',fname];
+        else parcelfile={};
+        end
+        filename=[filename,'.img'];
+        maskfilename{nic1}=fullfile(SPM{Ec(nic1,1)}.swd,filename);
+        if overwrite||isempty(dir(maskfilename{nic1})),
+            switch(conjunction_type)
+                case 'min',     Z=nan;
+                case 'max',     Z=nan;
+                case 'prod',    Z=1;
+                case 'sum',     Z=0;
+                otherwise,      error('unrecognized conjunction type %s',conjuntion_type);
+            end
+            U={};
+            for nic2=1:size(Ic,2),
+                a=spm_vol(fullfile(SPM{Ec(nic1,nic2)}.swd,SPM{Ec(nic1,nic2)}.xCon(abs(Ic(nic1,nic2))).Vspm.fname));
+                b=spm_read_vols(a);
+                idx=find(~isnan(b)&b~=0);
+                dof=[SPM{Ec(nic1,nic2)}.xCon(abs(Ic(nic1,nic2))).eidf,SPM{Ec(nic1,nic2)}.xX.erdf];
+                STAT=SPM{Ec(nic1,nic2)}.xCon(abs(Ic(nic1,nic2))).STAT;
+                R=SPM{Ec(nic1,nic2)}.xVol.R;
+                S=SPM{Ec(nic1,nic2)}.xVol.S;
+                n=1;
+                Y=nan+zeros(size(b)); % p-value of individual contrast
+                switch(STAT),
+                    case 'Z',Y(idx)=1-spm_Ncdf(b(idx));
+                    case 'T',Y(idx)=1-spm_Tcdf(b(idx),dof(2));
+                    case 'X',Y(idx)=1-spm_Xcdf(b(idx),dof(2));
+                    case 'F',Y(idx)=1-spm_Fcdf(b(idx),dof);
+                    otherwise, error('null');
+                end
+                if sign(Ic(nic1,nic2))<0, Y=1-Y; end % exclusion mask
+                switch(conjunction_type)
+                    case 'min',     Z=min(Z,Y);
+                    case 'max',     Z=max(Z,Y);
+                    case 'prod',    Z=Z.*Y;
+                    case 'sum',     Z=Z+Y;
+                    otherwise,      error('unrecognized conjunction type %s',conjuntion_type);
+                end
+                U{nic2}=sprintf('p=%f(%s),STAT=%s,dof=[%f,%f],R=[%f,%f,%f,%f],S=%f,n=%d,I=%d;',thr(nic2),thr_type{nic2},STAT,dof(1),dof(2),R(1),R(2),R(3),R(4),S,n,sign(Ic(nic1,nic2))>0); %p=spm_P_RF(1,0,u,dof,STAT,R,n);
+            end                
+            if ~isempty(strmatch(thr_type{nic2},{'percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level'},'exact')),
+                b=nan+zeros(size(Z));
+                idx=find(~isnan(Z));
+                b(idx)=exp(-Z(idx)); 
+                %switch(STAT),
+                %    case 'Z',b(idx)=spm_invNcdf(max(0,min(1, 1-Z(idx) )));
+                %    case 'T',b(idx)=spm_invTcdf(max(0,min(1, 1-Z(idx))),dof(2));
+                %    case 'X',b(idx)=spm_invXcdf(max(0,min(1, 1-Z(idx))),dof(2));
+                %    case 'F',b(idx)=spm_invFcdf(max(0,min(1, 1-Z(idx))),dof);
+                %    otherwise, error('null');
+                %end
+                switch(thr_type{nic2}),
+                    %case 'FWE',
+                    %    u=spm_uc(thr(nic2),dof,STAT,R,n,S);
+                    %    Y=double(b>u);
+                    %case 'FDR',
+                    %    Y=nan+zeros(size(b));
+                    %    switch(STAT),
+                    %        case 'Z',Y(idx)=1-spm_Ncdf(b(idx));
+                    %        case 'T',Y(idx)=1-spm_Tcdf(b(idx),dof(2));
+                    %        case 'X',Y(idx)=1-spm_Xcdf(b(idx),dof(2));
+                    %        case 'F',Y(idx)=1-spm_Fcdf(b(idx),dof);
+                    %        otherwise, error('null');
+                    %    end
+                    %    Y(:)=spm_ss_fdr(Y(:));
+                    %    Y=double(Y<thr(nic2));
+                    %case 'none'
+                    %    u=spm_u(thr(nic2),dof,STAT);
+                    %    Y=double(b>u);
+                    case 'percentile-whole-brain'
+                        Y=zeros(size(b));
+                        tN=b(idx);
+                        tN(tN==0|isnan(tN))=-inf;
+                        tNthreshold=sort(tN);
+                        tNthreshold=tNthreshold(max(1,min(numel(tN), ceil(numel(tN)*(1-thr(nic2))))));
+                        Y(idx)=double(tN>tNthreshold);
+                    case 'percentile-ROI-level'
+                        if isempty(optionROIs), error('no ROI file provided for percentile-ROI-level option'); end
+                        clear XYZ;
+                        [XYZ{1},XYZ{2},XYZ{3}]=ndgrid(1:a(1).dim(1),1:a(1).dim(2),1:a(1).dim(3));
+                        XYZ=reshape(cat(4,XYZ{:}),[],3)';XYZ=a(1).mat*cat(1,XYZ,ones(1,size(XYZ,2)));
+                        frois=round(spm_get_data(optionROIs,pinv(optionROIs.mat)*XYZ));
+                        nrois=max(frois(:));
+                        Y=zeros(size(b));
+                        for nroi=1:nrois,
+                            idxroi=find(frois==nroi);
+                            if ~isempty(idxroi)
+                                tN=b(idxroi);
+                                tN(tN==0|isnan(tN))=-inf;
+                                tNthreshold=sort(tN);
+                                tNthreshold=tNthreshold(max(1,min(numel(tN), ceil(numel(tN)*(1-thr(nic2))))));
+                                Y(idxroi)=double(tN>tNthreshold);
+                            end
+                        end
+                    case 'Nvoxels-whole-brain'
+                        Y=zeros(size(b));
+                        tN=b(idx);
+                        tN(tN==0|isnan(tN))=-inf;
+                        [tNthreshold,tNidx]=sort(tN);
+                        tNidx(tNidx)=1:numel(tNidx);
+                        Y(idx)=double(tNidx>numel(tN)-thr(nic2)&~isinf(tN));
+                    case 'Nvoxels-ROI-level'
+                        if isempty(optionROIs), error('no ROI file provided for Nvoxels-ROI-level option'); end
+                        clear XYZ;
+                        [XYZ{1},XYZ{2},XYZ{3}]=ndgrid(1:a(1).dim(1),1:a(1).dim(2),1:a(1).dim(3));
+                        XYZ=reshape(cat(4,XYZ{:}),[],3)';XYZ=a(1).mat*cat(1,XYZ,ones(1,size(XYZ,2)));
+                        frois=round(spm_get_data(optionROIs,pinv(optionROIs.mat)*XYZ));
+                        nrois=max(frois(:));
+                        Y=zeros(size(b));
+                        for nroi=1:nrois,
+                            idxroi=find(frois==nroi);
+                            if ~isempty(idxroi)
+                                tN=b(idxroi);
+                                tN(tN==0|isnan(tN))=-inf;
+                                [tNthreshold,tNidx]=sort(tN);
+                                tNidx(tNidx)=1:numel(tNidx);
+                                Y(idxroi)=double(tNidx>numel(tN)-thr(nic2)&~isinf(tN));
+                            end
+                        end
+                end
+                Z=Y;
+            else
+                error(['Incorrect threshold type option',thr_type{nic2}]);
+            end
+            if numel(Z)>1
+                if size(Ic,2)>1,
+                    if ~any(Z(:)>0), disp(['Warning! Output localizer volume #',num2str(nic1), ',  in contrast file ',maskfilename{nic1},', contains no supra-threshold voxels']);
+                    else disp([num2str(sum(Z(:)>0)),' voxels in output localizer volume #',num2str(nic1), ',  in contrast file ',maskfilename{nic1}]); end
+                end
+                cwd0=pwd;
+                cd(fileparts(maskfilename{nic1}));
+                Vo=struct(...
+                    'fname',    filename,...
+                    'dim',      a.dim,...
+                    'dt',       [spm_type('uint8') spm_platform('bigend')],...
+                    'mat',      a.mat,...
+                    'pinfo',    [1;0;0],...
+                    'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
+                Vo=spm_write_vol(Vo,Z);
+                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type}, 'conjunction_type',conjunction_type, 'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0)));
+                cd(cwd0);
+            end
+        end
+    end
+end
 end
 
 

@@ -15,6 +15,8 @@ function ss=spm_ss_design(ss)
 %      note: (automatic cross-validation) the toolbox will automatically check the orthogonality between the Localizer and effects of interest contrasts. If these are found not to be orthogonal the toolbox will create and estimate new (now orthogonal) contrasts by partitioning the selected contrasts across sessions
 %    ss.Localizer_thr_p              vector of false positive thresholds for each first-level localizer mask (default .05) note:if ss.Localizer_thr_type='automatic' the optimal FDR-corrected threshold level (maximizing the expected results sensitivity) is used (and this field is disregarded)   
 %    ss.Localizer_thr_type           cell array of multiple comparisons correction types for each first-level localizer mask ('FDR','FWE','none','percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level','automatic') (default 'FDR')
+%    ss.Localizer_conjunction_type   (for multiple localizers) type of conjunction ('and','or','min','max','prod','sum'). Option 'and': intersection of individually-thresholded localizer masks; 'or': union of individually-thresholded localizer masks; 'min': thresholded minimum p-value across localizer effects; 'max': thresholded maximum p-value across localizer effects; 'prod': thresholded product of p-values across localizer effects; 'sum': thresholded sum of p-values across localizer effects;  (default 'and')
+%                                    note: for 'min/max/prod/sum' options only 'percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level' Localizer_thr_type options are available; Localizer_thr_p and Localizer_thr_type values must take a single value (not a separate value per localizer in conjunction); and localizers with -not prefixes will use 1-p instead of p-values in the conjunction operation
 % (when selecting by contrast files; i.e. ss.files_selectmanually=1)
 %    ss.EffectOfInterest   cell array of Effects-of-interest contrast filenames (ss.EffectOfInterest{nsubject}{neffect,ncrossvalid} is a char array containing a con*.img contrast file)  
 %    ss.Localizer          cell array of mask files (ss.Localizer{nsubject}{ncrossvalid} is a char array pointing to a mask *.img file, NOTE: that the contrasts ss.Localizer{nsubject}{i} and ss.Localizer{nsubject}{j} should be mutually orthogonal for all i and j -forming a partition- and also ss.Localizer{nsubject}{i} should be orthogonal to ss.EffectOfInterest{nsubject}{i} for all i)
@@ -191,9 +193,9 @@ if ss.askn>1||~isfield(ss,'EffectOfInterest')||isempty(ss.EffectOfInterest),
             else Cnames={SPM.xCon(:).name};
             end
             if size(ss.EffectOfInterest_spm,1)==1
-                ic=[];ok=1;for n1=1:length(EffectOfInterest_contrasts),temp=strmatch(EffectOfInterest_contrasts{n1},Cnames,'exact');if numel(temp)==1,ic(n1)=temp; elseif EffectOfInterest_contrasts{n1}(1)=='*', temp=strmatch(EffectOfInterest_contrasts{n1}(2:end),Cnames,'exact'); if numel(temp)==1, ic(n1)=-temp; else ok=0;break; end; else ok=0;break; end; end
+                ic=[];ok=1;for n1=1:numel(EffectOfInterest_contrasts),temp=strmatch(EffectOfInterest_contrasts{n1},Cnames,'exact');if numel(temp)==1,ic(n1)=temp; elseif EffectOfInterest_contrasts{n1}(1)=='*', temp=strmatch(EffectOfInterest_contrasts{n1}(2:end),Cnames,'exact'); if numel(temp)==1, ic(n1)=-temp; else ok=0;break; end; else ok=0;break; end; end
             else
-                ic=[];ok=1;for n1=nc:min(nc,length(EffectOfInterest_contrasts)),temp=strmatch(EffectOfInterest_contrasts{n1},Cnames,'exact');if numel(temp)==1,ic=temp; elseif EffectOfInterest_contrasts{n1}(1)=='*', temp=strmatch(EffectOfInterest_contrasts{n1}(2:end),Cnames,'exact'); if numel(temp)==1, ic=-temp; else ok=0;break; end; else ok=0;break; end; end
+                ic=[];ok=1;for n1=nc:min(nc,numel(EffectOfInterest_contrasts)),temp=strmatch(EffectOfInterest_contrasts{n1},Cnames,'exact');if numel(temp)==1,ic=temp; elseif EffectOfInterest_contrasts{n1}(1)=='*', temp=strmatch(EffectOfInterest_contrasts{n1}(2:end),Cnames,'exact'); if numel(temp)==1, ic=-temp; else ok=0;break; end; else ok=0;break; end; end
             end
             if ss.askn>1||~ok||isempty(ic),
                 if size(ss.EffectOfInterest_spm,1)==1
@@ -250,6 +252,8 @@ if ss.askn>1||~isfield(ss,'EffectOfInterest')||isempty(ss.EffectOfInterest),
             ss.EffectOfInterest_contrasts(nc+(1:numel(Ic))-1)=Cnames(Ic); % note: the gui does not allow to manually cross-validate when using this option (i.e. multiple contrasts are interpreted as multiple effects of interest contrasts, not as multiple 'sessions'), use batch scripts instead
             nc=nc+numel(Ic);
         end
+        if size(ss.EffectOfInterest_spm,1)==1&&numel(ss.EffectOfInterest_contrasts)==numel(EffectOfInterest_contrasts), ss.EffectOfInterest_contrasts=reshape(ss.EffectOfInterest_contrasts,size(EffectOfInterest_contrasts)); end
+
 %         nnc=size(ss.EffectOfInterest_spm,1);
 %         if nnc>1,
 %             %ss.EffectOfInterest_contrasts={};
@@ -342,12 +346,14 @@ if ss.askn>1||~isfield(ss,'Localizer')||isempty(ss.Localizer),
                 if sign(Ic)<0, ss.Localizer_contrasts{nc}=['-not',ss.Localizer_contrasts{nc}];end %adds -not prefix to exclusive contrasts
             end
         else
+            Localizer_contrasts=ss.Localizer_contrasts;
+            ss.Localizer_contrasts={};
             load(ss.Localizer_spm{1},'SPM');
             SPM.swd=fileparts(ss.Localizer_spm{1});
             if ~isfield(SPM,'xCon')||isempty(SPM.xCon), Cnames={}; fprintf('warning: no target contrasts found inside %s\n',ss.Localizer_spm{1});
             else Cnames={SPM.xCon(:).name};
             end
-            ic=[];for n1=1:length(ss.Localizer_contrasts),temp=strmatch(ss.Localizer_contrasts{n1},Cnames,'exact');if numel(temp)~=1&&~isempty(strmatch('-not',ss.Localizer_contrasts{n1})),temp=-strmatch(ss.Localizer_contrasts{n1}(5:end),Cnames,'exact');end;if numel(temp)~=1,break;else ic(n1)=temp;end;end
+            ic=[];for n1=1:length(Localizer_contrasts),temp=strmatch(Localizer_contrasts{n1},Cnames,'exact');if numel(temp)~=1&&~isempty(strmatch('-not',Localizer_contrasts{n1})),temp=-strmatch(Localizer_contrasts{n1}(5:end),Cnames,'exact');end;if numel(temp)~=1,break;else ic(n1)=temp;end;end
             if ss.askn>1||isempty(ic),
                 str='Select LOCALIZER contrast(s)';
                 disp(str);
@@ -363,11 +369,14 @@ if ss.askn>1||~isfield(ss,'Localizer')||isempty(ss.Localizer),
             ss.Localizer_contrasts={Cnames{abs(Ic)}}; % note: the gui does not allow to manually cross-validate when using this option (i.e. multiple contrasts are interpreted as a conjunction of the selected localizer contrasts, not as multiple 'sessions'), use batch scripts instead
             for n1=1:numel(Ic),if sign(Ic(n1))<0, ss.Localizer_contrasts{n1}=['-not',ss.Localizer_contrasts{n1}];end;end %adds -not prefix to exclusive contrasts
             if numel(ic)~=numel(Ic) || any(ic(:)~=Ic(:)), ss.Localizer={}; end
+            if numel(ss.Localizer_contrasts)==numel(Localizer_contrasts), ss.Localizer_contrasts=reshape(ss.Localizer_contrasts,size(Localizer_contrasts)); end
         end
     end
 end
 
 if isfield(ss,'Localizer_thr_type')&&ischar(ss.Localizer_thr_type),ss.Localizer_thr_type=cellstr(ss.Localizer_thr_type);end
+if ~isfield(ss,'Localizer_conjunction_type')||isempty(ss.Localizer_conjunction_type), ss.Localizer_conjunction_type='and'; end
+if isfield(ss,'Localizer_conjunction_type')&&~ischar(ss.Localizer_conjunction_type),ss.Localizer_conjunction_type=char(ss.Localizer_conjunction_type);end
 if ~ss.files_selectmanually&&(ss.askn>1||~isfield(ss,'Localizer_thr_type')||numel(ss.Localizer_thr_type)<size(ss.Localizer_contrasts,2)||~isfield(ss,'Localizer_thr_p')||numel(ss.Localizer_thr_p)<size(ss.Localizer_contrasts,2)),
     if ~isfield(ss,'Localizer_thr_type')||isempty(ss.Localizer_thr_type), ss.Localizer_thr_type=repmat({'FDR'},[1,size(ss.Localizer_contrasts,2)]); end
     if numel(ss.Localizer_thr_type)~=size(ss.Localizer_contrasts,2), ss.Localizer_thr_type={ss.Localizer_thr_type{min(numel(ss.Localizer_thr_type),1:size(ss.Localizer_contrasts,2))}}; end
@@ -377,18 +386,43 @@ if ~ss.files_selectmanually&&(ss.askn>1||~isfield(ss,'Localizer_thr_type')||nume
     if numel(ss.Localizer_thr_p)~=size(ss.Localizer_contrasts,2), ss.Localizer_thr_p=ss.Localizer_thr_p(min(numel(ss.Localizer_thr_p),1:size(ss.Localizer_contrasts,2))); end
     if ss.askn,
         if isnumeric(posstr)&&isempty(findobj(0,'tag','Interactive')), spm('CreateIntWin'); end;
+        if size(ss.Localizer_contrasts,2)>1
+            str='Type of conjunction?';
+            disp(str);
+            sstype3options={'and','or','min','max','prod','sum'};
+            sstype3=spm_input(str,posstr,'m','and|or|min|max|prod|sum',[],strmatch(lower(ss.Localizer_conjunction_type),sstype3options,'exact'));posstr='+1';
+            if ~isequal(ss.Localizer_conjunction_type,sstype3options{sstype3}), ss.Localizer={}; end
+            ss.Localizer_conjunction_type=sstype3options{sstype3};
+        end
         sstype1={};sstype2=[];
-        for n1=1:size(ss.Localizer_contrasts,2)
+        if size(ss.Localizer_contrasts,2)>1&&~isequal(ss.Localizer_conjunction_type,'and')&&~isequal(ss.Localizer_conjunction_type,'or')
+            n1=1;
             types={'FDR','FWE','none','automatic','percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level'};
             sstype=strmatch(lower(ss.Localizer_thr_type{n1}),lower(types),'exact');
-            str=['Contrast #',num2str(n1),' localizer p value adjustment to control? (',ss.Localizer_contrasts{n1},')'];
+            str=['Conjunction localizer p value adjustment to control?'];
             disp(str);
             sstype1{n1}=types{spm_input(str,posstr,'m','FDR|FWE|none|automatic|percentile-whole-brain|percentile-ROI-level|Nvoxels-whole-brain|Nvoxels-ROI-level',[],sstype)};posstr='+1';
             if strcmpi(sstype1{n1},'automatic'), sstype2(n1)=nan;
             else
-                str=['Contrast #',num2str(n1),' localizer p value threshold? (',ss.Localizer_contrasts{n1},')'];
+                str=['Conjuntion localizer p value threshold?'];
                 disp(str);
                 sstype2(n1)=spm_input(str,posstr,'r',ss.Localizer_thr_p(n1)); posstr='+1';
+            end
+            sstype1=repmat(sstype1,1,size(ss.Localizer_contrasts,2));
+            sstype2=repmat(sstype2,1,size(ss.Localizer_contrasts,2));
+        else
+            for n1=1:size(ss.Localizer_contrasts,2)
+                types={'FDR','FWE','none','automatic','percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level'};
+                sstype=strmatch(lower(ss.Localizer_thr_type{n1}),lower(types),'exact');
+                str=['Contrast #',num2str(n1),' localizer p value adjustment to control? (',ss.Localizer_contrasts{n1},')'];
+                disp(str);
+                sstype1{n1}=types{spm_input(str,posstr,'m','FDR|FWE|none|automatic|percentile-whole-brain|percentile-ROI-level|Nvoxels-whole-brain|Nvoxels-ROI-level',[],sstype)};posstr='+1';
+                if strcmpi(sstype1{n1},'automatic'), sstype2(n1)=nan;
+                else
+                    str=['Contrast #',num2str(n1),' localizer p value threshold? (',ss.Localizer_contrasts{n1},')'];
+                    disp(str);
+                    sstype2(n1)=spm_input(str,posstr,'r',ss.Localizer_thr_p(n1)); posstr='+1';
+                end
             end
         end
         if numel(ss.Localizer_thr_type)~=numel(sstype1), ss.Localizer={}; else for n1=1:numel(ss.Localizer_thr_type),if ~strcmpi(ss.Localizer_thr_type{n1},sstype1{n1}), ss.Localizer={}; end; end; end
@@ -397,7 +431,10 @@ if ~ss.files_selectmanually&&(ss.askn>1||~isfield(ss,'Localizer_thr_type')||nume
         ss.Localizer_thr_p=sstype2;
     end
 end
-
+if ~isequal(ss.Localizer_conjunction_type,'and')&&~isequal(ss.Localizer_conjunction_type,'or')&&size(ss.Localizer_contrasts,2)>1&&numel(ss.Localizer_thr_type)==1, ss.Localizer_thr_type=repmat(ss.Localizer_thr_type,1,size(ss.Localizer_contrasts,2)); end
+if ~isequal(ss.Localizer_conjunction_type,'and')&&~isequal(ss.Localizer_conjunction_type,'or')&&size(ss.Localizer_contrasts,2)>1&&numel(ss.Localizer_thr_p)==1, ss.Localizer_thr_p=repmat(ss.Localizer_thr_p,1,size(ss.Localizer_contrasts,2)); end
+if ~isequal(ss.Localizer_conjunction_type,'and')&&~isequal(ss.Localizer_conjunction_type,'or')&&numel(ss.Localizer_thr_p)>1&&numel(ss.Localizer_thr_type)>1&&(any(ss.Localizer_thr_p~=ss.Localizer_thr_p(1))||numel(strmatch(ss.Localizer_thr_type{1},ss.Localizer_thr_type,'exact'))~=numel(ss.Localizer_thr_type)), error('when using conjunction %s option, Localizer_thr_p and Localizer_thr_type options must take a single value (not a different value per localizer)',ss.Localizer_conjunction_type); end
+    
 if isfield(ss,'overlap_thr')&&~isfield(ss,'overlap_thr_vox'),ss.overlap_thr_vox=ss.overlap_thr;ss=rmfield(ss,'overlap_thr');end
 if (ss.typen==2) && (ss.askn>1||~isfield(ss,'overlap_thr_vox')||isempty(ss.overlap_thr_vox)), 
     if ~isfield(ss,'overlap_thr_vox')||isempty(ss.overlap_thr_vox), ss.overlap_thr_vox=.10; end
@@ -570,7 +607,7 @@ if ~ss.files_selectmanually&&(~isfield(ss,'Localizer')||isempty(ss.Localizer)||~
     end
     if isfield(ss,'EffectOfInterest_contrasts_grandmeanscaling')&&~isempty(ss.EffectOfInterest_contrasts_grandmeanscaling), fext=['.',ss.EffectOfInterest_contrasts_grandmeanscaling,fext]; end % uses alternative grand-mean scaling (see evlab17_gmscale)
     disp('Importing contrast information from SPM.mat files. Please wait...');
-    spm_ss_threshold('begin',ss.Localizer_thr_type,ss.Localizer_thr_p);
+    spm_ss_threshold('begin',ss.Localizer_thr_type,ss.Localizer_thr_p,ss.Localizer_conjunction_type);
     for np=1:size(ss.EffectOfInterest_spm,2),%subjects
         spm_data=[];
         Ic1=[];Ec1=[];ok=1;
@@ -608,7 +645,7 @@ if ~ss.files_selectmanually&&(~isfield(ss,'Localizer')||isempty(ss.Localizer)||~
             Inewc1{nexp}=Ic1(:,iIc1);Inewc2{nexp}=Ic2(:,iIc2);
             if ~isempty(iIc1)&&~isempty(iIc2),        
                 o=spm_SpUtil('ConO',spm_data.SPM{nexp}.xX.X,[spm_data.SPM{nexp}.xCon([Ic1(:,iIc1),abs(Ic2(:,iIc2))]).c]);
-                o=permute(reshape(o(1:numel(iIc1),numel(iIc1)+1:end),[ncross,numel(iIc1),ncross,numel(iIc2)]),[2,4,1,3]);
+                o=permute(reshape(o(1:numel(iIc1)*ncross,numel(iIc1)*ncross+1:end),[ncross,numel(iIc1),ncross,numel(iIc2)]),[2,4,1,3]);
                 oo=o(:,:,1:ncross+1:ncross*ncross);
                 if ~all(oo(:))&&okorth&&ncross>1,
                     str={'WARNING! You are choosing manual cross-validation, yet not all of the LOCALIZER and EFFECT OF INTEREST contrast pairs selected are orthogonal',...
