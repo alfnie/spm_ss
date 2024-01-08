@@ -14,7 +14,7 @@ function ss=spm_ss_design(ss)
 %    ss.Localizer_contrasts          cell array of localizer contrast names (ss.Localizer_contrast{nconjunction} is a char array containing one or several 1st-level contrast names (multiple localizers will perform a conjunction of the individual localizer contrasts; use the prefix -not before a valid contrast name to use exclusive conjunction); for manual cross-validation use ss.Localizer_contrast{ncrossvalid,nconjunction} and the toobox will perform cross-validation across these partitions)
 %      note: (automatic cross-validation) the toolbox will automatically check the orthogonality between the Localizer and effects of interest contrasts. If these are found not to be orthogonal the toolbox will create and estimate new (now orthogonal) contrasts by partitioning the selected contrasts across sessions
 %    ss.Localizer_thr_p              vector of false positive thresholds for each first-level localizer mask (default .05) note:if ss.Localizer_thr_type='automatic' the optimal FDR-corrected threshold level (maximizing the expected results sensitivity) is used (and this field is disregarded)   
-%    ss.Localizer_thr_type           cell array of multiple comparisons correction types for each first-level localizer mask ('FDR','FWE','none','percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level','automatic') (default 'FDR')
+%    ss.Localizer_thr_type           cell array of multiple comparisons correction types or alternative types of thresholding operations for each first-level localizer mask ('FDR','FWE','none','percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level','automatic') (default 'FDR')
 %    ss.Localizer_conjunction_type   (for multiple localizers) type of conjunction ('and','or','min','max','prod','sum'). Option 'and': intersection of individually-thresholded localizer masks; 'or': union of individually-thresholded localizer masks; 'min': thresholded minimum p-value across localizer effects; 'max': thresholded maximum p-value across localizer effects; 'prod': thresholded product of p-values across localizer effects; 'sum': thresholded sum of p-values across localizer effects;  (default 'and')
 %                                    note: for 'min/max/prod/sum' options only 'percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level' Localizer_thr_type options are available; Localizer_thr_p and Localizer_thr_type values must take a single value (not a separate value per localizer in conjunction); and localizers with -not prefixes will use 1-p instead of p-values in the conjunction operation
 % (when selecting by contrast files; i.e. ss.files_selectmanually=1)
@@ -741,6 +741,7 @@ if initestimation, ss.estimate={}; ss.evaluate={}; end
 ss.ask=[];ss.askn=[];
 
 objname=findobj('tag','spm_ss');if numel(objname)==1,objdata.files_spm_ss=fullfile(ss.swd,['SPM_ss_',ss.type,'.mat']);set(objname,'userdata',objdata);end;
+try, [nill,nill]=mkdir(ss.swd); end
 save(fullfile(ss.swd,['SPM_ss_',ss.type,'.mat']),'ss');
 disp(['Analysis file saved: ',fullfile(ss.swd,['SPM_ss_',ss.type,'.mat'])]);
 

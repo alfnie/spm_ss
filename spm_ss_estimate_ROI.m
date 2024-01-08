@@ -47,7 +47,9 @@ for n=1:ss.n,
     ss.PV_subjnames{n}=num2str(n); 
     if numel(ss.Localizer{n})>0
         [pth1a,pth1b]=fileparts(pth1);
-        if ~isempty(regexp(pth1b,'^model_|^firstlevel_'))&&~isempty(pth1a), [pth1b,pth1a]=fileparts(pth1a); ss.PV_subjnames{n}=pth1a; end
+        if ~isempty(regexp(pth1b,'^model_|^firstlevel_'))&&~isempty(pth1a), [pth1b,pth1a]=fileparts(pth1a); ss.PV_subjnames{n}=pth1a; 
+        elseif ~isempty(regexp(pth1a,'[^\/]+\/[^\/]+\/results\/firstlevel$')), [pth1b,pth1a]=fileparts(fileparts(fileparts(fileparts(pth1a)))); ss.PV_subjnames{n}=pth1a; 
+        end
     end
 end
 
@@ -66,7 +68,9 @@ for n=1:ss.n,
     if ~isempty(idxk1)
         [pth1,nm1,ext1,num1]=spm_fileparts(ss.VY(idxk1,1).fname);
         [pth1a,pth1b]=fileparts(pth1);
-        if ~isempty(regexp(pth1b,'^model_|^firstlevel_'))&&~isempty(pth1a), [pth1b,pth1a]=fileparts(pth1a); ss.PV_subjnames{n}=pth1a; end
+        if ~isempty(regexp(pth1b,'^model_|^firstlevel_'))&&~isempty(pth1a), [pth1b,pth1a]=fileparts(pth1a); ss.PV_subjnames{n}=pth1a; 
+        elseif ~isempty(regexp(pth1a,'[^\/]+\/[^\/]+\/results\/firstlevel$')), [pth1b,pth1a]=fileparts(fileparts(fileparts(fileparts(pth1a)))); ss.PV_subjnames{n}=pth1a; 
+        end
         nvy=ss.VN(idxk1); 
         ss.refspace.masks{n}=struct('mat',nvy.mat,'dim',nvy.dim);
         nvy=ss.VY(idxk,:); 
@@ -228,7 +232,7 @@ VO=struct('fname',['spm_ss',extname,'_overlap.img'],...
 VO=spm_create_vol(VO);
 
 
-Bplane=nan+zeros([Nb,nrois]);Cplane=zeros(ss.n,nrois);Eplane=nan+zeros(Nb(2),Nb(2),nrois);Oplane=nan+zeros(1,nrois);Zplane=zeros(ss.n,Nb(2),nrois);Nplane=nan+zeros([ss.n,nrois]);Pplane=nan+zeros([1,nrois]);Mplane=nan+zeros([numel(ss.VN),nrois]);
+Bplane=nan+zeros([Nb,nrois]);Cplane=zeros(ss.n,nrois);Eplane=nan+zeros(Nb(2),Nb(2),nrois);Oplane=nan+zeros(1,nrois);Zplane=zeros(ss.n,Nb(2),nrois);Z0plane=zeros(numel(ss.VN),Nb(2),nrois);Nplane=nan+zeros([ss.n,nrois]);Pplane=nan+zeros([1,nrois]);Mplane=nan+zeros([numel(ss.VN),nrois]);
 
 fprintf('Performing model estimation...');
 for nroi=1:nrois,
@@ -266,8 +270,8 @@ for nroi=1:nrois,
 %     Mplane(:,nroi)=sum(N,2);
 %     Y=mean(Y.*repmat(N,[Nb(2),1]),2);
 %     N=mean(N,2);
-    Y=reshape(Y./max(eps,repmat(N,[Nb(2),1])),[size(N,1),Nb(2)]);
-    Y=ss.PV*Y;
+    Y0=reshape(Y./max(eps,repmat(N,[Nb(2),1])),[size(N,1),Nb(2)]);
+    Y=ss.PV*Y0;
     N=1./(ss.PV*(1./max(eps,N)));
     sN=mean(N>1e-4,1);
     if sN>0,
@@ -290,6 +294,7 @@ for nroi=1:nrois,
     Pplane(nroi)=mean(N);
     Oplane(nroi)=sN;
     Zplane(:,:,nroi)=Y;
+    Z0plane(:,:,nroi)=Y0;
 end
 fprintf(1,'\n');
 
@@ -373,6 +378,17 @@ for ne=1:Nb(2), fprintf(fh,',%s',effect_names{1,ne}); end; fprintf(fh,'\n');
 for nf=1:size(ss.estimate.qa,1),
     fprintf(fh,'%s,%d,%s',ss.PV_subjnames{nidxs2(1,nf)},nidxs2(2,nf),ss.PN{nf}); 
     for ne=1:size(ss.PY,2), fprintf(fh,',%s',ss.PY{nf,ne}); end; fprintf(fh,'\n');
+end
+fclose(fh);
+fname=['spm_ss',extname,'_data.details.EffectSize.csv'];
+fh=fopen(fullfile(ss.swd,fname),'wt');
+fprintf(fh,'ROI,Subject,Effect,Session/Partition,LocalizerSize,EffectSize\n');
+for nroi=1:nrois,
+    for nf=1:size(ss.estimate.qa,1),
+        for ne=1:Nb(2),
+            fprintf(fh,'%s,%s,%s, %d,%d,%f\n',ss.VM_roinames{nroi},ss.PV_subjnames{nidxs2(1,nf)},effect_names{1,ne}, nidxs2(2,nf),round(ss.estimate.qa(nf,nroi)),Z0plane(nf,ne,nroi));
+        end
+    end
 end
 fclose(fh);
 fname=['spm_ss',extname,'_data.csv'];
