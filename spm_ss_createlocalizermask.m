@@ -398,7 +398,7 @@ elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTIO
             end
         end
     end
-else % CONJUNCTION MIN/MAX/PROD/SUM
+else % CONJUNCTION MIN/MAX/PROD/SUM/OMNIBUS
     for nic1=1:size(Ic,1), % computes one separate thresholded volume per row of Ic (multiple columns are treated as a conjunction)
         filename='locT_';
         for nic2=1:size(Ic,2),
@@ -421,6 +421,7 @@ else % CONJUNCTION MIN/MAX/PROD/SUM
                 case 'max',     Z=nan;
                 case 'prod',    Z=1;
                 case 'sum',     Z=0;
+                case 'omnibus', Z=0; dfZ=0;
                 otherwise,      error('unrecognized conjunction type %s',conjuntion_type);
             end
             U={};
@@ -434,23 +435,34 @@ else % CONJUNCTION MIN/MAX/PROD/SUM
                 S=SPM{Ec(nic1,nic2)}.xVol.S;
                 n=1;
                 Y=nan+zeros(size(b)); % p-value of individual contrast
-                switch(STAT),
-                    case 'Z',Y(idx)=1-spm_Ncdf(b(idx));
-                    case 'T',Y(idx)=1-spm_Tcdf(b(idx),dof(2));
-                    case 'X',Y(idx)=1-spm_Xcdf(b(idx),dof(2));
-                    case 'F',Y(idx)=1-spm_Fcdf(b(idx),dof);
-                    otherwise, error('null');
-                end
-                if sign(Ic(nic1,nic2))<0, Y=1-Y; end % exclusion mask
-                switch(conjunction_type)
-                    case 'min',     Z=min(Z,Y);
-                    case 'max',     Z=max(Z,Y);
-                    case 'prod',    Z=Z.*Y;
-                    case 'sum',     Z=Z+Y;
-                    otherwise,      error('unrecognized conjunction type %s',conjuntion_type);
+                if isequal(conjunction_type,'omnibus'),
+                    Y(idx)=b(idx);
+                    if sign(Ic(nic1,nic2))<0, error('omnibus conjunction type does not allow -not flags in contrasts'); end % exclusion mask
+                    switch(STAT),
+                        case 'T',dfZ=dfZ+dof(2); Z=Z+Y*sqrt(dof(2));
+                        case 'F',dfZ=dfZ+dof(2); Z=Z+sqrt(Y)*sqrt(dof(2)); % note: only exact for F(1,df) stats
+                        otherwise, error('null');
+                    end
+                else
+                    switch(STAT),
+                        case 'Z',Y(idx)=1-spm_Ncdf(b(idx));
+                        case 'T',Y(idx)=1-spm_Tcdf(b(idx),dof(2));
+                        case 'X',Y(idx)=1-spm_Xcdf(b(idx),dof(2));
+                        case 'F',Y(idx)=1-spm_Fcdf(b(idx),dof);
+                        otherwise, error('null');
+                    end
+                    if sign(Ic(nic1,nic2))<0, Y=1-Y; end % exclusion mask
+                    switch(conjunction_type)
+                        case 'min',     Z=min(Z,Y);
+                        case 'max',     Z=max(Z,Y);
+                        case 'prod',    Z=Z.*Y;
+                        case 'sum',     Z=Z+Y;
+                        otherwise,      error('unrecognized conjunction type %s',conjuntion_type);
+                    end
                 end
                 U{nic2}=sprintf('p=%f(%s),STAT=%s,dof=[%f,%f],R=[%f,%f,%f,%f],S=%f,n=%d,I=%d;',thr(nic2),thr_type{nic2},STAT,dof(1),dof(2),R(1),R(2),R(3),R(4),S,n,sign(Ic(nic1,nic2))>0); %p=spm_P_RF(1,0,u,dof,STAT,R,n);
             end                
+            if isequal(conjunction_type,'omnibus'), Z=1-spm_Tcdf(Z/sqrt(dfZ), dfZ); end
             if ~isempty(strmatch(thr_type{nic2},{'percentile-whole-brain','percentile-ROI-level','Nvoxels-whole-brain','Nvoxels-ROI-level'},'exact')),
                 b=nan+zeros(size(Z));
                 idx=find(~isnan(Z));
