@@ -253,7 +253,7 @@ if strcmp(options,'noconjunction')
                         'pinfo',    [1;0;0],...
                         'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
                     Vo=spm_write_vol(Vo,Z);
-                    spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr(nic2),'threshold_type',{thr_type(nic2)},'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z)));
+                    spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr(nic2),'threshold_type',{thr_type(nic2)},'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z),'full_filename',filename));
                     cd(cwd0);
                 end
             end
@@ -385,6 +385,7 @@ elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTIO
                 end
                 cwd0=pwd;
                 cd(fileparts(maskfilename{nic1}));
+                fullfilename=filename; if numel(filename)>64, filename=['locT_conjunction_',char(mlreportgen.utils.hash(filename)),'.nii']; end
                 Vo=struct(...
                     'fname',    filename,...
                     'dim',      a.dim,...
@@ -393,7 +394,7 @@ elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTIO
                     'pinfo',    [1;0;0],...
                     'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
                 Vo=spm_write_vol(Vo,Z);
-                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type},'conjunction_type',conjunction_type,'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0)));
+                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type},'conjunction_type',conjunction_type,'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0),'full_filename',fullfilename));
                 cd(cwd0);
             end
         end
@@ -554,6 +555,7 @@ else % CONJUNCTION MIN/MAX/PROD/SUM/OMNIBUS
                 end
                 cwd0=pwd;
                 cd(fileparts(maskfilename{nic1}));
+                fullfilename=filename; if numel(filename)>64, filename=['locT_conjunction_',char(mlreportgen.utils.hash(filename)),'.nii']; end
                 Vo=struct(...
                     'fname',    filename,...
                     'dim',      a.dim,...
@@ -562,7 +564,7 @@ else % CONJUNCTION MIN/MAX/PROD/SUM/OMNIBUS
                     'pinfo',    [1;0;0],...
                     'descrip',  sprintf('SPM_SS LOCALIZER{%s}',cat(2,U{:})));
                 Vo=spm_write_vol(Vo,Z);
-                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type}, 'conjunction_type',conjunction_type, 'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0)));
+                spm_jsonwrite([regexprep(filename,'\.nii$|\.img$',''),'.json'],struct('threshold_value',thr,'threshold_type',{thr_type}, 'conjunction_type',conjunction_type, 'threshold_roifile',{parcelfile},'output_nvoxels',nnz(Z>0),'full_filename',fullfilename));
                 cd(cwd0);
             end
         end
