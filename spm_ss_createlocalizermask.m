@@ -261,7 +261,7 @@ if strcmp(options,'noconjunction')
     end
 elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTION AND/OR
     for nic1=1:size(Ic,1), % computes one separate thresholded volume per row of Ic (multiple columns are treated as a conjunction)
-        filename='locT_';
+        filename='locT_conjunction_';
         for nic2=1:size(Ic,2),
             if Ec(nic1,nic2)~=Ec(nic1,1), temp=SPM{Ec(nic1,nic2)}.swd; temp(temp==filesep)='_';filename=[filename,temp]; end
             filename=[filename,symbols{signIc(nic1,nic2)},num2str(abs(Ic(nic1,nic2)),'%04d'),'_',thr_type{nic2},num2str(thr(nic2))];
@@ -401,7 +401,7 @@ elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTIO
     end
 else % CONJUNCTION MIN/MAX/PROD/SUM/OMNIBUS
     for nic1=1:size(Ic,1), % computes one separate thresholded volume per row of Ic (multiple columns are treated as a conjunction)
-        filename='locT_';
+        filename='locT_conjunction_';
         for nic2=1:size(Ic,2),
             if Ec(nic1,nic2)~=Ec(nic1,1), temp=SPM{Ec(nic1,nic2)}.swd; temp(temp==filesep)='_';filename=[filename,temp]; end
             filename=[filename,symbols{signIc(nic1,nic2)},num2str(abs(Ic(nic1,nic2)),'%04d'),'_',thr_type{nic2},num2str(thr(nic2))];
