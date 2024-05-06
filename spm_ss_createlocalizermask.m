@@ -275,6 +275,7 @@ elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTIO
         else parcelfile={};
         end
         filename=[filename,'.img'];
+        fullfilename=filename; if numel(filename)>64, filename=[filename(1:28),char(mlreportgen.utils.hash(filename)),'.nii']; end
         maskfilename{nic1}=fullfile(SPM{Ec(nic1,1)}.swd,filename);
         if overwrite||isempty(dir(maskfilename{nic1})),
             switch(conjunction_type)
@@ -385,7 +386,6 @@ elseif strcmp(conjunction_type,'and')|strcmp(conjunction_type,'or') % CONJUNCTIO
                 end
                 cwd0=pwd;
                 cd(fileparts(maskfilename{nic1}));
-                fullfilename=filename; if numel(filename)>64, filename=['locT_conjunction_',char(mlreportgen.utils.hash(filename)),'.nii']; end
                 Vo=struct(...
                     'fname',    filename,...
                     'dim',      a.dim,...
@@ -415,6 +415,7 @@ else % CONJUNCTION MIN/MAX/PROD/SUM/OMNIBUS
         else parcelfile={};
         end
         filename=[filename,'.img'];
+        fullfilename=filename; if numel(filename)>64, filename=[filename(1:28),char(mlreportgen.utils.hash(filename)),'.nii']; end
         maskfilename{nic1}=fullfile(SPM{Ec(nic1,1)}.swd,filename);
         if overwrite||isempty(dir(maskfilename{nic1})),
             switch(conjunction_type)
@@ -555,7 +556,6 @@ else % CONJUNCTION MIN/MAX/PROD/SUM/OMNIBUS
                 end
                 cwd0=pwd;
                 cd(fileparts(maskfilename{nic1}));
-                fullfilename=filename; if numel(filename)>64, filename=['locT_conjunction_',char(mlreportgen.utils.hash(filename)),'.nii']; end
                 Vo=struct(...
                     'fname',    filename,...
                     'dim',      a.dim,...
